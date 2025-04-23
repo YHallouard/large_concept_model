@@ -1,4 +1,3 @@
-import secrets
 from pathlib import Path
 
 import torch
@@ -32,9 +31,9 @@ class RandomSequenceDataset(Dataset):
                 start_idx = 0
                 while start_idx < doc_length - self.min_length + 1:
                     max_length = min(self.max_length, doc_length - start_idx)
-                    sequence_length = secrets.randbelow(max_length - self.min_length + 1) + self.min_length
+                    sequence_length = int(torch.randint(self.min_length, max_length + 1, (1,)).item())
                     self.sequence_indices.append((doc_id, start_idx, sequence_length))
-                    start_idx += sequence_length - self.stride
+                    start_idx += max(1, int(sequence_length - self.stride))
 
     def __len__(self) -> int:
         return len(self.sequence_indices)

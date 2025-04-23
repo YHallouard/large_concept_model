@@ -1,4 +1,3 @@
-import random
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -41,7 +40,7 @@ class TestRandomSequenceDataset(unittest.TestCase):
 
     def test_random_sequence_generation(self) -> None:
         # Given
-        random.seed(0)
+        torch.manual_seed(0)
         stride = 4
         dataset = RandomSequenceDataset(
             embeddings_dir=self.embeddings_dir, min_length=self.min_length, max_length=self.max_length, stride=stride
@@ -51,9 +50,9 @@ class TestRandomSequenceDataset(unittest.TestCase):
         input_seq, target_seq, padding_mask = dataset[0]
 
         # Then
-        expected_input_seq = torch.cat([self.doc1_embeddings[1:-1], torch.zeros((23, 2))], dim=0)
-        expected_target_seq = torch.cat([self.doc1_embeddings[2:], torch.zeros((23, 2))], dim=0)
-        expected_padding_mask = torch.cat([torch.ones(8), torch.zeros(23)])
+        expected_input_seq = torch.cat([self.doc1_embeddings[:-3], torch.zeros((24, 2))], dim=0)
+        expected_target_seq = torch.cat([self.doc1_embeddings[1:-2], torch.zeros((24, 2))], dim=0)
+        expected_padding_mask = torch.cat([torch.ones(7), torch.zeros(24)])
 
         torch.testing.assert_close(input_seq, expected_input_seq)
         torch.testing.assert_close(target_seq, expected_target_seq)

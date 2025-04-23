@@ -8,24 +8,12 @@
 
 This is an exploration of LCM and SONAR
 
-- **Github repository**: <https://github.com/YHALLOUARD/lcm-explo/>
-- **Documentation** <https://YHALLOUARD.github.io/lcm-explo/>
+- **Github repository**: <https://github.com/YHALLOUARD/large_concept_model/>
+- **Documentation** <https://YHALLOUARD.github.io/large_concept_model/>
 
-## Getting started with your project
+## Getting started
 
-### 1. Create a New Repository
-
-First, create a repository on GitHub with the same name as this project, and then run the following commands:
-
-```bash
-git init -b main
-git add .
-git commit -m "init commit"
-git remote add origin git@github.com:YHALLOUARD/lcm-explo.git
-git push -u origin main
-```
-
-### 2. Set Up Your Development Environment
+### 1. Set Up Your Development Environment
 
 Then, install the environment and the pre-commit hooks with
 
@@ -35,33 +23,16 @@ make install
 
 This will also generate your `uv.lock` file
 
-### 3. Run the pre-commit hooks
+## Tips
 
-Initially, the CI/CD pipeline might be failing due to formatting issues. To resolve those run:
-
-```bash
-uv run pre-commit run -a
-```
-
-### 4. Commit the changes
-
-Lastly, commit the changes made by the two steps above to your repository.
+Run processing
 
 ```bash
-git add .
-git commit -m 'Fix formatting issues'
-git push origin main
+uv run python scripts/process_wikipedia.py --output-dir notebooks/data --device cuda --num-articles 10000
 ```
 
-You are now ready to start development on your project!
-The CI/CD pipeline will be triggered when you open a pull request, merge to main, or when you create a new release.
+Run Base lcm training
 
-To finalize the set-up for publishing to PyPI, see [here](https://fpgmaas.github.io/cookiecutter-uv/features/publishing/#set-up-for-pypi).
-For activating the automatic documentation with MkDocs, see [here](https://fpgmaas.github.io/cookiecutter-uv/features/mkdocs/#enabling-the-documentation-on-github).
-To enable the code coverage reports, see [here](https://fpgmaas.github.io/cookiecutter-uv/features/codecov/).
-
-## Releasing a new version
-
----
-
-Repository initiated with [fpgmaas/cookiecutter-uv](https://github.com/fpgmaas/cookiecutter-uv).
+```bash
+uv run python scripts/train_base_lcm.py --embeddings-dir notebooks/data --output-dir notebooks/data/checkpoints --max-epochs 100
+```

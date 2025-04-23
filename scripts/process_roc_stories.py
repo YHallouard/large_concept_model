@@ -14,7 +14,7 @@ from lcm_explo.domain.usecases.encode import encode_text_sonar
 from lcm_explo.m2m_100 import M2M100EncoderModel
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Process Wikipedia articles")
+    parser = argparse.ArgumentParser(description="Process ROC stories")
     parser.add_argument(
         "--output-dir", type=Path, default=Path("embeddings"), help="Directory to save processed embeddings"
     )
@@ -30,9 +30,8 @@ if __name__ == "__main__":
 
     file_system_embedding = FileSystemEmbeddingRepository(base_path=args.output_dir)
 
-    wikipedia_dataset = load_dataset(
-        "wikimedia/wikipedia",
-        "20231101.en",
+    roc_stories_dataset = load_dataset(
+        "mintujupally/ROCStories",
         split="train",
     )
 
@@ -43,13 +42,11 @@ if __name__ == "__main__":
 
     splitter = SaT("sat-3l")
 
-    iter_dataset = iter(wikipedia_dataset)
+    iter_dataset = iter(roc_stories_dataset)
 
-    already_computed_embeddings = file_system_embedding.list_documents()
-
-    for article in tqdm([next(iter_dataset) for _ in range(args.num_articles)]):
-        title = article["title"].replace("/", "_")
-        if title in already_computed_embeddings:
+    for index, article in tqdm(enumerate([next(iter_dataset) for _ in range(args.num_articles)])):
+        title = f"roc_story_{index}"
+        if title in file_system_embedding.list_documents():
             continue
         encoded_article = encode_text_sonar(
             article["text"],
@@ -57,6 +54,7 @@ if __name__ == "__main__":
             sonar_tokenizer=sonar_tokenizer,
             sonar_model=sonar_encoder,
             splitter=splitter,
+            min_sentence_length=5,
         )
         document = DocumentEmbeddings(document_id=title, embeddings=encoded_article)
 

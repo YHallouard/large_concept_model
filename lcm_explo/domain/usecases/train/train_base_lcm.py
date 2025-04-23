@@ -2,7 +2,7 @@ import lightning as pl
 import torch
 from lightning.pytorch.utilities.types import OptimizerLRSchedulerConfig
 from torch.optim import AdamW
-from torch.optim.lr_scheduler import CosineAnnealingWarmRestarts
+from torch.optim.lr_scheduler import CosineAnnealingLR
 
 from lcm_explo.domain.models import RMSELoss
 from lcm_explo.domain.models.base_lcm import BaseLCM, BaseLCMConfig
@@ -55,7 +55,7 @@ class BaseLCMTrainingModule(pl.LightningModule):
     def configure_optimizers(self) -> OptimizerLRSchedulerConfig:
         optimizer = AdamW(self.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
 
-        scheduler = CosineAnnealingWarmRestarts(optimizer, T_0=self.warmup_steps // 10, T_mult=1, eta_min=self.min_lr)
+        scheduler = CosineAnnealingLR(optimizer, T_max=self.max_steps, eta_min=self.min_lr)
 
         return OptimizerLRSchedulerConfig(**{
             "optimizer": optimizer,

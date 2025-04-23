@@ -14,9 +14,13 @@ def embedding_collate_fn(
     padding_mask = torch.stack([item[2] for item in batch])
     if torch.backends.mps.is_available():
         device = torch.device("mps")
-        inputs = inputs.to(device)
-        targets = targets.to(device)
-        padding_mask = padding_mask.to(device)
+    elif torch.cuda.is_available():
+        device = torch.device("cuda")
+    else:
+        device = torch.device("cpu")
+    inputs = inputs.to(device)
+    targets = targets.to(device)
+    padding_mask = padding_mask.to(device)
     return inputs, targets, padding_mask
 
 
