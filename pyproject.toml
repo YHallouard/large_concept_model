@@ -1,0 +1,153 @@
+[project]
+name = "lcm-explo"
+version = "0.0.1"
+description = "This is an exploration of LCM and SONAR"
+authors = [{ name = "Yann HALLOUARD", email = "yann.hal@gmail.com" }]
+readme = "README.md"
+keywords = ['python']
+requires-python = ">=3.10,<=3.12"
+classifiers = [
+    "Intended Audience :: Developers",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "datasets>=3.3.0",
+    "seaborn>=0.13.2",
+    # "sonar-space",
+    # "fairseq2==0.3.0",
+    "jupyter>=1.1.1",
+    "matplotlib>=3.10.0",
+    "notebook>=7.3.2",
+    "numpy>=1.26.4",
+    "pandas>=2.2.3",
+    "scipy>=1.15.1",
+    "scikit-learn>=1.6.1",
+    "torch>=2.6.0",
+    "sentence-transformers>=3.4.1",
+    "wtpsplit>=2.1.4",
+    "torchvision>=0.21.0",
+    "av>=14.2.0",
+    "lightning>=2.5.0.post0",
+    "sentencepiece",
+    "transformers<4.48.dev0",
+    "types-tqdm>=4.67.0.20250417",
+]
+
+[project.urls]
+Homepage = "https://YHALLOUARD.github.io/lcm-explo/"
+Repository = "https://github.com/YHALLOUARD/lcm-explo"
+Documentation = "https://YHALLOUARD.github.io/lcm-explo/"
+
+[dependency-groups]
+dev = [
+    "pytest>=7.2.0",
+    "pre-commit>=2.20.0",
+    "tox-uv>=1.11.3",
+    "mypy>=0.991",
+    "ruff>=0.9.2",
+]
+
+[build-system]
+requires = ["setuptools >= 61.0"]
+build-backend = "setuptools.build_meta"
+
+
+[tool.setuptools]
+include-package-data = false
+
+[tool.setuptools.packages.find]
+include = ["lcm_explo*"]
+exclude = ["*__tests__*"]
+
+[tool.mypy]
+files = ["lcm_explo"]
+disallow_untyped_defs = true
+disallow_any_unimported = true
+no_implicit_optional = true
+check_untyped_defs = true
+warn_return_any = true
+warn_unused_ignores = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = "lcm_explo.m2m_100.*"
+ignore_errors = true
+
+[tool.pytest.ini_options]
+testpaths = ["*__tests__*"]
+norecursedirs = ["lcm_explo/m2m_100"]
+
+[tool.ruff]
+target-version = "py39"
+line-length = 120
+fix = true
+
+[tool.ruff.lint]
+select = [
+    # flake8-2020
+    "YTT",
+    # flake8-bandit
+    "S",
+    # flake8-bugbear
+    "B",
+    # flake8-builtins
+    "A",
+    # flake8-comprehensions
+    "C4",
+    # flake8-debugger
+    "T10",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+    # mccabe
+    "C90",
+    # pycodestyle
+    "E", "W",
+    # pyflakes
+    "F",
+    # pygrep-hooks
+    "PGH",
+    # pyupgrade
+    "UP",
+    # ruff
+    "RUF",
+    # tryceratops
+    "TRY",
+]
+ignore = [
+    # LineTooLong
+    "E501",
+    # DoNotAssignLambda
+    "E731",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+"lcm_explo/m2m_100/**" = [
+    "TRY003",
+    "C901",
+    "RUF012",
+    "S311",
+    "F401",
+    "S107",
+    "TRY301",
+]
+
+[tool.ruff.format]
+preview = true
+
+[tool.uv.sources]
+sonar-space = { path = "../SONAR" }
+
+[[tool.uv.index]]
+url = "https://fair.pkg.atmeta.com/fairseq2/whl/pt2.2.0/cu121"
+
+[tool.bandit]
+exclude_dirs = ["lcm_explo/m2m_100/"]

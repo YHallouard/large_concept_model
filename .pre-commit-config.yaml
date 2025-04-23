@@ -1,0 +1,86 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: check-ast
+      - id: check-yaml
+      - id: check-json
+      - id: check-toml
+      - id: check-case-conflict
+      - id: detect-private-key
+      - id: mixed-line-ending
+        args:
+          - --fix=auto
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      - id: check-symlinks
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: [--maxkb=1024]
+      - id: end-of-file-fixer
+        exclude: tests/resources/.*\.json|safeworld_edge_app/packages/.*\.json
+
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: v4.6.0
+    hooks:
+      - id: commitizen
+        stages: [commit-msg]
+
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        exclude: tests/.*|uv.lock
+        name: 'detect-secrets'
+        args: [ '--exclude-files', '.*\.ipynb$', "tests/.*", "uv.lock"]
+      - id: detect-secrets
+        name: 'detect-secrets-jupyter'
+        args: [ '--exclude-files', '.*[^i][^p][^y][^n][^b]$|.*colab.*', '--exclude-lines', '"(hash|id|image/\w+)":.*']
+
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.3
+    hooks:
+      - id: bandit
+        name: Bandit
+        args: ["-c", "pyproject.toml"]
+        additional_dependencies: [".[toml]"]
+
+  - repo: local
+    hooks:
+      - id: lock
+        name: lock
+        entry: uv lock --check
+        language: system
+        pass_filenames: false
+
+      - id: setup
+        name: setup
+        entry: uv sync --all-extras --inexact --all-groups -v
+        language: system
+        types: [python]
+        pass_filenames: false
+
+      - id: mypy
+        name: mypy
+        entry: uv run mypy --config-file pyproject.toml
+        language: system
+        types: [python]
+
+      - id: lint
+        name: lint
+        entry: uv run ruff check
+        language: system
+        types: [python]
+
+      - id: import
+        name: import
+        entry: uv run ruff check --select I --fix
+        language: system
+        types: [python]
+
+      - id: format
+        name: format
+        entry: uv run ruff format
+        language: system
+        types: [python]
