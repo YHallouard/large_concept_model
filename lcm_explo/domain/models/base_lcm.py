@@ -139,7 +139,9 @@ class BaseLCMDecoderLayer(nn.Module):
     def __init__(self, config: BaseLCMConfig) -> None:
         super().__init__()
         self.self_attention = QKNormedMultiheadAttention(
-            config.hidden_size, config.num_attention_heads, dropout=config.attention_probs_dropout_prob
+            config.hidden_size,
+            config.num_attention_heads,
+            dropout=config.attention_probs_dropout_prob,
         )
         self.feed_forward = nn.Sequential(
             nn.Linear(config.hidden_size, config.intermediate_size),

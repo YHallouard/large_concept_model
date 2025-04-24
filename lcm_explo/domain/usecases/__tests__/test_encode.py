@@ -13,15 +13,11 @@ class TestEncode(unittest.TestCase):
         self.text = "This is a test text, it should be longer than the minimum chunk size. . Arf. This is another sentence that is longer than the minimum chunk size."
         self.splitted_text = [
             "This is a test text, it should be longer than the minimum chunk size.",
-            " ",
-            "Arf.",
             "This is another sentence that is longer than the minimum chunk size.",
         ]
         self.long_text = self.text * 50
         self.splitted_long_text = [
             "This is a test text, it should be longer than the minimum chunk size.",
-            " ",
-            "Arf.",
             "This is another sentence that is longer than the minimum chunk size.",
         ] * 50
         self.tokenizer = InMemoryTokenizer(vocab_size=10)
@@ -31,34 +27,19 @@ class TestEncode(unittest.TestCase):
         })
         self.device = "cpu"
 
-    def test_split_long_text_short_input(self) -> None:
-        # Given
-        short_text = "Short text"
-
-        # When
-        result = split_long_text(self.tokenizer, self.splitter, short_text, max_length=20)
-
-        # Assert
-        self.assertEqual(result, [short_text])
-
     def test_split_long_text_long_input(self) -> None:
         # When
-        result = split_long_text(self.tokenizer, self.splitter, self.text, max_length=10)
+        result = split_long_text(self.splitter, self.text)
 
         # Then
-        expected_chunks = [
-            "This is a test text, it should be longer than the minimum chunk size.",
-            "This is another sentence that is longer than the minimum chunk size.",
-        ]
+        expected_chunks = self.splitted_text  # Use the predefined split text
         self.assertEqual(result, expected_chunks)
 
     def test_split_long_text_with_different_min_lengths(self) -> None:
-        # Test with small min length
-        result_small = split_long_text(self.tokenizer, self.splitter, self.text, max_length=10, min_sentence_length=5)
+        result_small = split_long_text(self.splitter, self.text, min_sentence_length=5)
         self.assertGreater(len(result_small), 0)
 
-        # Test with large min length
-        result_large = split_long_text(self.tokenizer, self.splitter, self.text, max_length=10, min_sentence_length=100)
+        result_large = split_long_text(self.splitter, self.text, min_sentence_length=100)
         self.assertEqual(len(result_large), 0)
 
     def test_encode_text_sonar(self) -> None:
@@ -80,7 +61,7 @@ class TestEncode(unittest.TestCase):
         # Then
         self.assertIsInstance(result, torch.Tensor)
         self.assertEqual(result.shape[0], 100)
-        self.assertEqual(result.shape[1], 768)
+        self.assertEqual(result.shape[1], SONAR_DIMENSIONS)
 
     def test_encode_text_sonar_with_different_min_lengths(self) -> None:
         # Given

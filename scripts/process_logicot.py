@@ -14,7 +14,7 @@ from lcm_explo.domain.usecases.encode import encode_text_sonar
 from lcm_explo.m2m_100 import M2M100EncoderModel
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Process ROC stories")
+    parser = argparse.ArgumentParser(description="Process LogiCoT dataset")
     parser.add_argument(
         "--output-dir", type=Path, default=Path("embeddings"), help="Directory to save processed embeddings"
     )
@@ -24,14 +24,14 @@ if __name__ == "__main__":
         default="cuda" if torch.cuda.is_available() else "cpu",
         help="Device to use for computation",
     )
-    parser.add_argument("--num-articles", type=int, default=5000, help="Number of articles to process")
+    parser.add_argument("--num-entries", type=int, default=5000, help="Number of entries to process")
 
     args = parser.parse_args()
 
     file_system_embedding = FileSystemEmbeddingRepository(base_path=args.output_dir)
 
-    roc_stories_dataset = load_dataset(
-        "mintujupally/ROCStories",
+    logicot_dataset = load_dataset(
+        "datatune/LogiCoT",
         split="train",
     )
 
@@ -42,22 +42,25 @@ if __name__ == "__main__":
 
     splitter = SaT("sat-3l")
 
-    iter_dataset = iter(roc_stories_dataset)
+    iter_dataset = iter(logicot_dataset)
 
     index = 0
-    for article in tqdm([next(iter_dataset) for _ in range(args.num_articles)]):
-        title = f"roc_story_{index}"
+    for entry in tqdm([next(iter_dataset) for _ in range(args.num_entries)]):
+        title = f"logicot_entry_{index}"
         index += 1
         if title in file_system_embedding.list_documents():
             continue
-        encoded_article = encode_text_sonar(
-            article["text"],
+        entry_input = entry["input"]
+        modified_input = entry_input.replace("sent", ". sent")
+        full_text = f"{entry['instruction']} {modified_input} {entry['output']}"
+        encoded_entry = encode_text_sonar(
+            full_text,
             device=args.device,
             sonar_tokenizer=sonar_tokenizer,
             sonar_model=sonar_encoder,
             splitter=splitter,
             min_sentence_length=5,
         )
-        document = DocumentEmbeddings(document_id=title, embeddings=encoded_article)
+        document = DocumentEmbeddings(document_id=title, embeddings=encoded_entry)
 
         file_system_embedding.save_document_embeddings(document)
