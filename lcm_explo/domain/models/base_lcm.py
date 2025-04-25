@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 
 from lcm_explo.domain.models.nn import DyT, QKNormedMultiheadAttention
+from lcm_explo.domain.models.nn.rotary_positional_mbeddings import RotaryPositionalEmbedding
 
 
 class UnknowNormTypeError(Exception):
@@ -54,6 +55,7 @@ class BaseLCMConfig:
 
     concept_embedding_dim: int = 1024
     hidden_size: int = 2048
+    max_seq_len: int = 512
     num_attention_heads: int = 16
     num_hidden_layers: int = 12
     intermediate_size: int = 1024 * 4
@@ -94,6 +96,7 @@ class BaseLCMPreNet(nn.Module):
         self.config = config
         self.scaler = StandardScaler()
         self.proj = nn.Linear(config.concept_embedding_dim, config.hidden_size)
+        self.positional_embedding = RotaryPositionalEmbedding(config.hidden_size, config.max_seq_len)
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, StandardScaler]:
         """
@@ -106,6 +109,7 @@ class BaseLCMPreNet(nn.Module):
         """
         x = self.scaler(x)
         x = self.proj(x)
+        x = self.positional_embedding(x)
         return x, self.scaler
 
 

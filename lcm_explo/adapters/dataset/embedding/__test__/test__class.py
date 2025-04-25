@@ -63,10 +63,6 @@ class TestEmbeddingsDataset(unittest.TestCase):
 
     def test_getitem(self) -> None:
         # Given
-        # - embeddings_dir with doc1 saved
-        # - sequence_length = 4
-        # - stride = 2
-
         # When
         dataset = EmbeddingsDataset(
             embeddings_dir=self.embeddings_dir, sequence_length=self.sequence_length, stride=self.stride
@@ -74,8 +70,8 @@ class TestEmbeddingsDataset(unittest.TestCase):
         input_seq, target_seq, padding_mask = dataset[0]
 
         # Then
-        expected_input = self.doc1_embeddings[:3]  # First 3 elements
-        expected_target = self.doc1_embeddings[1:4]  # Elements 1-4
+        expected_input = self.doc1_embeddings[:4]
+        expected_target = self.doc1_embeddings[1:5]
         expected_padding_mask = torch.ones(expected_input.shape[:-1])
 
         torch.testing.assert_close(input_seq, expected_input)
@@ -99,10 +95,10 @@ class TestEmbeddingsDataset(unittest.TestCase):
             input_seq, target_seq, padding_mask = dataset[0]
 
             # Then
-            padding = torch.zeros((1, 2))  # 1 padding element with 2 features
-            expected_input = torch.cat([self.doc2_embeddings[:3], padding])[:-1]
-            expected_target = torch.cat([self.doc2_embeddings[:3], padding])[1:]
-            expected_padding_mask = torch.ones(expected_input.shape[:-1])
+            padding = torch.zeros((2, 2))  # 1 padding element with 2 features
+            expected_input = torch.cat([self.doc2_embeddings[:2], padding])
+            expected_target = torch.cat([self.doc2_embeddings[1:], padding])
+            expected_padding_mask = torch.cat([torch.ones(2), torch.zeros(2)])
 
             torch.testing.assert_close(input_seq, expected_input)
             torch.testing.assert_close(target_seq, expected_target)

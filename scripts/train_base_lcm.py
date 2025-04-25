@@ -59,7 +59,9 @@ def main() -> None:
     )
 
     # Create model and trainer
-    config = BaseLCMConfig()
+    config = BaseLCMConfig(
+        max_seq_len=args.sequence_length,
+    )
     model = BaseLCMTrainingModule(config)
 
     # Setup callbacks

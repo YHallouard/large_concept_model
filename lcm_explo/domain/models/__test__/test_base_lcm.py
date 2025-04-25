@@ -94,8 +94,10 @@ class TestStandardScaler(unittest.TestCase):
 
 class TestBaseLCMPreNet(unittest.TestCase):
     def test_forward(self) -> None:
+        given_max_seq_len = 16
         config = BaseLCMConfig(
             hidden_size=64,
+            max_seq_len=given_max_seq_len,
             num_attention_heads=4,
             num_hidden_layers=2,
             intermediate_size=128,
@@ -105,7 +107,7 @@ class TestBaseLCMPreNet(unittest.TestCase):
             layer_norm_eps=1e-12,
             concept_embedding_dim=32,
         )
-        concept_embeddings = torch.randn(4, 16, 32)
+        concept_embeddings = torch.randn(4, given_max_seq_len, 32)
         pre_net = BaseLCMPreNet(config)
         output, scaler = pre_net(concept_embeddings)
 
@@ -129,8 +131,10 @@ class TestBaseLCMPreNet(unittest.TestCase):
 
 class TestBaseLCMPostNet(unittest.TestCase):
     def test_forward(self) -> None:
+        given_max_seq_len = 16
         config = BaseLCMConfig(
             hidden_size=64,
+            max_seq_len=given_max_seq_len,
             num_attention_heads=4,
             num_hidden_layers=2,
             intermediate_size=128,
@@ -140,7 +144,7 @@ class TestBaseLCMPostNet(unittest.TestCase):
             layer_norm_eps=1e-12,
             concept_embedding_dim=32,
         )
-        concept_embeddings = torch.randn(4, 16, 32)
+        concept_embeddings = torch.randn(4, given_max_seq_len, 32)
         pre_net = BaseLCMPreNet(config)
         post_net = BaseLCMPostNet(config)
 
@@ -162,6 +166,7 @@ class TestBaseLCMDecoderLayer(unittest.TestCase):
     def test_forward(self) -> None:
         config = BaseLCMConfig(
             hidden_size=64,
+            max_seq_len=16,
             num_attention_heads=4,
             num_hidden_layers=2,
             intermediate_size=128,
@@ -193,6 +198,7 @@ class TestBaseLCMDecoderLayer(unittest.TestCase):
     def test_layer_norm_switch(self) -> None:
         config = BaseLCMConfig(
             hidden_size=64,
+            max_seq_len=16,
             num_attention_heads=4,
             num_hidden_layers=2,
             intermediate_size=128,
@@ -223,8 +229,10 @@ class TestBaseLCMDecoderLayer(unittest.TestCase):
 
 class TestBaseLCMDecoder(unittest.TestCase):
     def test_forward(self) -> None:
+        given_max_seq_len = 16
         config = BaseLCMConfig(
             hidden_size=64,
+            max_seq_len=given_max_seq_len,
             num_attention_heads=4,
             num_hidden_layers=2,
             intermediate_size=128,
@@ -234,7 +242,7 @@ class TestBaseLCMDecoder(unittest.TestCase):
             layer_norm_eps=1e-12,
             concept_embedding_dim=32,
         )
-        concept_embeddings = torch.randn(4, 16, 32)
+        concept_embeddings = torch.randn(4, given_max_seq_len, 32)
         decoder = BaseLCMDecoder(config)
 
         # Get normalized input from pre_net
@@ -256,8 +264,10 @@ class TestBaseLCMDecoder(unittest.TestCase):
 
 class TestBaseLCM(unittest.TestCase):
     def test_forward(self) -> None:
+        given_max_seq_len = 16
         config = BaseLCMConfig(
             hidden_size=64,
+            max_seq_len=given_max_seq_len,
             num_attention_heads=4,
             num_hidden_layers=2,
             intermediate_size=128,
@@ -267,7 +277,7 @@ class TestBaseLCM(unittest.TestCase):
             layer_norm_eps=1e-12,
             concept_embedding_dim=32,
         )
-        concept_embeddings = torch.randn(4, 16, 32)
+        concept_embeddings = torch.randn(4, given_max_seq_len, 32)
         model = BaseLCM(config)
 
         # Create a padding mask
@@ -283,8 +293,10 @@ class TestBaseLCM(unittest.TestCase):
         self.assertFalse(torch.isinf(output).any())
 
     def test_weight_initialization(self) -> None:
+        given_max_seq_len = 16
         config = BaseLCMConfig(
             hidden_size=64,
+            max_seq_len=given_max_seq_len,
             num_attention_heads=4,
             num_hidden_layers=2,
             intermediate_size=128,
@@ -317,8 +329,10 @@ class TestBaseLCM(unittest.TestCase):
                 self.assertTrue(torch.allclose(module.bias, torch.zeros_like(module.bias)))
 
     def test_next_concept_prediction(self) -> None:
+        given_max_seq_len = 4
         config = BaseLCMConfig(
             hidden_size=64,
+            max_seq_len=given_max_seq_len,
             num_attention_heads=4,
             num_hidden_layers=2,
             intermediate_size=128,
@@ -330,9 +344,8 @@ class TestBaseLCM(unittest.TestCase):
         )
         # Create a sequence of concept embeddings
         batch_size = 2
-        seq_len = 4
-        x = torch.randn(batch_size, seq_len, config.concept_embedding_dim)
-        padding_mask = torch.ones(batch_size, seq_len, dtype=torch.float32)
+        x = torch.randn(batch_size, given_max_seq_len, config.concept_embedding_dim)
+        padding_mask = torch.ones(batch_size, given_max_seq_len, dtype=torch.float32)
 
         model = BaseLCM(config)
         output = model(x, padding_mask)

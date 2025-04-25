@@ -53,11 +53,20 @@ class EmbeddingsDataset(Dataset):
         doc_id, start_idx = self.sequence_indices[idx]
         doc = self.embedding_repo.load_document_embeddings(doc_id)
 
-        sequence = doc.embeddings[start_idx : start_idx + self.sequence_length]
-        if len(sequence) < self.sequence_length:
-            padding = torch.zeros((self.sequence_length - len(sequence), sequence.shape[1]), device=sequence.device)
-            sequence = torch.cat([sequence, padding], dim=0)
+        sequence = doc.embeddings[start_idx : start_idx + self.sequence_length + 1]
 
-        padding_mask = torch.ones(sequence.shape[:-1])
+        input_sequence_part = sequence[:-1]
+        input_padding = torch.zeros(
+            (self.sequence_length - len(input_sequence_part), sequence.shape[1]), device=sequence.device
+        )
+        input_sequence = torch.cat([input_sequence_part, input_padding], dim=0)
 
-        return sequence[:-1], sequence[1:], padding_mask[:-1]
+        target_sequence_part = sequence[1:]
+        target_padding = torch.zeros(
+            (self.sequence_length - len(target_sequence_part), sequence.shape[1]), device=sequence.device
+        )
+        target_sequence = torch.cat([target_sequence_part, target_padding], dim=0)
+
+        padding_mask = torch.cat([torch.ones(len(input_sequence_part)), torch.zeros(len(input_padding))], dim=0)
+
+        return input_sequence, target_sequence, padding_mask
