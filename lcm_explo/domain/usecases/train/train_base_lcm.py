@@ -38,7 +38,7 @@ class BaseLCMTrainingModule(pl.LightningModule):
         x, y, padding_mask = batch
 
         y_pred = self(x, padding_mask)
-        loss: torch.Tensor = self.loss(y_pred, y)
+        loss: torch.Tensor = self.loss(y_pred, y, padding_mask)
 
         self.log("train_loss", loss, prog_bar=True)
         return loss
@@ -47,7 +47,7 @@ class BaseLCMTrainingModule(pl.LightningModule):
         x, y, padding_mask = batch
 
         y_pred = self(x, padding_mask)
-        loss: torch.Tensor = self.loss(y_pred, y)
+        loss: torch.Tensor = self.loss(y_pred, y, padding_mask)
 
         self.log("val_loss", loss, prog_bar=True)
         return loss
