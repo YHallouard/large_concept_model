@@ -31,6 +31,7 @@ class TestLCMTrainingModule(unittest.TestCase):
         # Given
         self.config = BaseLCMConfig(
             hidden_size=8,
+            max_seq_len=2,
             num_attention_heads=2,
             num_hidden_layers=2,
             intermediate_size=32,
