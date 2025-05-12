@@ -10,7 +10,7 @@ from wtpsplit import SaT  # type: ignore[import-untyped]
 
 from lcm_explo.adapters.embedding_repository.file_system import FileSystemEmbeddingRepository
 from lcm_explo.domain.models.documents import DocumentEmbeddings
-from lcm_explo.domain.usecases.encode import encode_text_sonar
+from lcm_explo.domain.usecases.encode import encode_text_sonar, encode_text_sonar_with_spacy
 from lcm_explo.m2m_100 import M2M100EncoderModel
 
 if __name__ == "__main__":
@@ -25,6 +25,7 @@ if __name__ == "__main__":
         help="Device to use for computation",
     )
     parser.add_argument("--num-articles", type=int, default=5000, help="Number of articles to process")
+    parser.add_argument("--splitter", type=str, default="sat", help="Splitter to use")
 
     args = parser.parse_args()
 
@@ -51,13 +52,24 @@ if __name__ == "__main__":
         title = article["title"].replace("/", "_")
         if title in already_computed_embeddings:
             continue
-        encoded_article = encode_text_sonar(
-            article["text"],
-            device=args.device,
-            sonar_tokenizer=sonar_tokenizer,
-            sonar_model=sonar_encoder,
-            splitter=splitter,
-        )
+        if args.splitter == "sat":
+            encoded_article = encode_text_sonar(
+                article["text"],
+                device=args.device,
+                sonar_tokenizer=sonar_tokenizer,
+                sonar_model=sonar_encoder,
+                splitter=splitter,
+            )
+        elif args.splitter == "spacy":
+            encoded_article = encode_text_sonar_with_spacy(
+                article["text"],
+                device=args.device,
+                sonar_tokenizer=sonar_tokenizer,
+                sonar_model=sonar_encoder,
+            )
+        else:
+            raise ValueError(f"Invalid splitter: {args.splitter}")  # noqa: TRY003
+
         document = DocumentEmbeddings(document_id=title, embeddings=encoded_article)
 
         file_system_embedding.save_document_embeddings(document)

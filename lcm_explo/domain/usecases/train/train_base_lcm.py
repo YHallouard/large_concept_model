@@ -40,6 +40,12 @@ class BaseLCMTrainingModule(pl.LightningModule):
         y_pred = self(x, padding_mask)
         loss: torch.Tensor = self.loss(y_pred, y, padding_mask)
 
+        # Log the running_mean and running_var from the StandardScaler
+        running_mean = self.model.pre_net.scaler.running_mean.item()
+        running_var = self.model.pre_net.scaler.running_var.item()
+        self.log("running_mean", running_mean, prog_bar=True)
+        self.log("running_var", running_var, prog_bar=True)
+
         self.log("train_loss", loss, prog_bar=True)
         return loss
 

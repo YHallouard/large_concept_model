@@ -21,10 +21,14 @@ class StandardScaler(nn.Module):
 
     running_mean: torch.Tensor
     running_var: torch.Tensor
+    temperature: float
+    pass_counter: int
 
-    def __init__(self, eps: float = 1e-8) -> None:
+    def __init__(self, eps: float = 1e-8, temperature: float = 3000.0) -> None:
         super().__init__()
         self.eps = eps
+        self.temperature = temperature
+        self.pass_counter = 0
         self.register_buffer("running_mean", torch.zeros(1))
         self.register_buffer("running_var", torch.ones(1))
 
@@ -40,13 +44,18 @@ class StandardScaler(nn.Module):
         if self.training:
             mean = x.mean()
             var = x.var(unbiased=False)
-            self.running_mean = 0.1 * mean + 0.9 * self.running_mean
-            self.running_var = 0.1 * var + 0.9 * self.running_var
+            temperature = self.update_temperature()
+            self.running_mean = temperature * mean + (1 - temperature) * self.running_mean
+            self.running_var = temperature * var + (1 - temperature) * self.running_var
         else:
             mean = self.running_mean
             var = self.running_var
 
         return (x - mean) / torch.sqrt(var + self.eps)
+
+    def update_temperature(self) -> float:
+        self.pass_counter += 1
+        return (0.1 * torch.exp(-torch.tensor(self.pass_counter / self.temperature))).item()
 
 
 @dataclass
@@ -55,7 +64,7 @@ class BaseLCMConfig:
 
     concept_embedding_dim: int = 1024
     hidden_size: int = 2048
-    max_seq_len: int = 512
+    max_seq_len: int = 32
     num_attention_heads: int = 16
     num_hidden_layers: int = 12
     intermediate_size: int = 1024 * 4

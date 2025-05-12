@@ -3,6 +3,7 @@ install: ## Install the virtual environment and install the pre-commit hooks
 	@echo "🚀 Creating virtual environment using uv"
 	@uv sync
 	@uv run pre-commit install
+	@uv run -- spacy download es_core_news_md
 
 .PHONY: check
 check: ## Run code quality tools.

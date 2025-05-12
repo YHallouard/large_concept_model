@@ -48,7 +48,7 @@ def concept_embeddings(batch_size: int, sequence_length: int, config: BaseLCMCon
 
 class TestStandardScaler(unittest.TestCase):
     def test_forward(self) -> None:
-        scaler = StandardScaler()
+        scaler = StandardScaler(temperature=3000.0)
         x = torch.randn(4, 16, 32)
         output = scaler(x)
 
@@ -60,7 +60,7 @@ class TestStandardScaler(unittest.TestCase):
         self.assertFalse(torch.isinf(output).any())
 
     def test_running_stats(self) -> None:
-        scaler = StandardScaler()
+        scaler = StandardScaler(temperature=3000.0)
         x = torch.randn(4, 16, 32)
 
         # Initial stats
@@ -76,7 +76,7 @@ class TestStandardScaler(unittest.TestCase):
         self.assertFalse(torch.equal(scaler.running_var, initial_var))
 
     def test_eval_mode(self) -> None:
-        scaler = StandardScaler()
+        scaler = StandardScaler(temperature=3000.0)
         x = torch.randn(4, 16, 32)
 
         # Set to eval mode

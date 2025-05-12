@@ -10,7 +10,7 @@ class RMSELoss(nn.Module):
         self.scale = scale
 
     def forward(self, yhat: torch.Tensor, y: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
-        mse_loss = self.mse(yhat, y).mean(dim=-1)
+        mse_loss = self.mse(yhat, y).mean(dim=-1)  # (batch, seq, model_dim sonar)
         masked_mse_loss = mse_loss * mask
 
         mean_masked_mse_loss = masked_mse_loss.sum() / mask.sum()

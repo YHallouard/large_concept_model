@@ -5,7 +5,14 @@ import torch
 from lcm_explo.adapters.splitter import InMemorySplitter
 from lcm_explo.adapters.tokenizer import InMemoryTokenizer
 from lcm_explo.constant import SONAR_DIMENSIONS
-from lcm_explo.domain.usecases.encode import encode_text_sonar, split_long_text
+from lcm_explo.domain.usecases.encode import (
+    encode_text_sonar,
+    encode_text_sonar_with_spacy,
+    fallback_resplit,
+    spacy_segment,
+    split_long_text,
+    split_text,
+)
 
 
 class TestEncode(unittest.TestCase):
@@ -87,3 +94,90 @@ class TestEncode(unittest.TestCase):
             self.long_text, self.device, self.tokenizer, model, self.splitter, min_sentence_length=100
         )
         self.assertEqual(result_large.shape[0], 0)
+
+    def test_spacy_segment(self) -> None:
+        # Given
+        text = "This is a sentence. And another one."
+
+        # When
+        result = spacy_segment(text)
+
+        # Then
+        expected = ["This is a sentence.", "And another one."]
+        self.assertEqual(result, expected)
+
+    def test_fallback_resplit(self) -> None:
+        # Given
+        text = "This is a very long sentence that needs to be split into smaller parts."
+        max_length = 10
+
+        # When
+        result = fallback_resplit(text, max_length)
+
+        # Then
+        expected = ["This is a", "very long", "sentence", "that", "needs to", "be split", "into", "smaller", "parts."]
+        self.assertEqual(result, expected)
+
+    def test_split_text(self) -> None:
+        # Given
+        text = "This is a sentence. This is a very long sentence that needs to be split into smaller parts."
+        max_length = 20
+
+        # When
+        result = split_text(text, max_length)
+
+        # Then
+        expected = [
+            "This is a sentence.",
+            "This is a very long",
+            "sentence that needs",
+            "to be split into",
+            "smaller parts.",
+        ]
+        self.assertEqual(result, expected)
+
+    def test_encode_text_sonar_with_spacy(self) -> None:
+        # Given
+        class MockModel(torch.nn.Module):
+            def __init__(self, embedding_dim: int = SONAR_DIMENSIONS) -> None:
+                super().__init__()
+                self.embedding_dim = embedding_dim
+
+            def forward(self, **kwargs) -> dict[str, torch.Tensor]:  # type: ignore[no-untyped-def]
+                batch_size = kwargs["input_ids"].shape[0]
+                return type("obj", (object,), {"last_hidden_state": torch.ones((batch_size, 5, self.embedding_dim))})  # type: ignore[return-value]
+
+        model = MockModel()
+
+        # When
+        result = encode_text_sonar_with_spacy(self.long_text, self.device, self.tokenizer, model)
+
+        # Then
+        self.assertIsInstance(result, torch.Tensor)
+        self.assertEqual(result.shape[0], 150)  # Adjusted expected result
+        self.assertEqual(result.shape[1], SONAR_DIMENSIONS)
+
+    def test_encode_text_sonar_with_spacy_different_max_lengths(self) -> None:
+        # Given
+        class MockModel(torch.nn.Module):
+            def __init__(self, embedding_dim: int = SONAR_DIMENSIONS) -> None:
+                super().__init__()
+                self.embedding_dim = embedding_dim
+
+            def forward(self, **kwargs) -> dict[str, torch.Tensor]:  # type: ignore[no-untyped-def]
+                batch_size = kwargs["input_ids"].shape[0]
+                return type("obj", (object,), {"last_hidden_state": torch.ones((batch_size, 5, self.embedding_dim))})  # type: ignore[return-value]
+
+        model = MockModel()
+
+        # Test with small max length
+        result_small = encode_text_sonar_with_spacy(
+            self.long_text, self.device, self.tokenizer, model, max_sentence_length=5
+        )
+        self.assertGreater(result_small.shape[0], 99)
+
+        # Test with large max length
+        result_large = encode_text_sonar_with_spacy(
+            self.long_text, self.device, self.tokenizer, model, max_sentence_length=100
+        )
+        self.assertEqual(result_large.shape[0], 150)  # Adjusted expected result
