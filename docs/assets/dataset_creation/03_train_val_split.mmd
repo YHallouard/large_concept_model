@@ -1,0 +1,3 @@
+flowchart LR
+    ALL["total_sequences\n(ex: 976 562)"] --> TRAIN["train: [0 .. num_train)\n(les 99% premières séquences)"]
+    ALL --> VAL["val: [num_train .. total_sequences)\n(le dernier val_fraction = 1%)"]

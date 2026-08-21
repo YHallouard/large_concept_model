@@ -4,6 +4,7 @@ import torch
 from torch.utils.data import Dataset
 
 from lcm_explo.adapters.embedding_repository.file_system import FileSystemEmbeddingRepository
+from lcm_explo.domain.models.documents import DocumentEmbeddings
 
 
 def embedding_collate_fn(
@@ -12,15 +13,6 @@ def embedding_collate_fn(
     inputs = torch.stack([item[0] for item in batch])
     targets = torch.stack([item[1] for item in batch])
     padding_mask = torch.stack([item[2] for item in batch])
-    if torch.backends.mps.is_available():
-        device = torch.device("mps")
-    elif torch.cuda.is_available():
-        device = torch.device("cuda")
-    else:
-        device = torch.device("cpu")
-    inputs = inputs.to(device)
-    targets = targets.to(device)
-    padding_mask = padding_mask.to(device)
     return inputs, targets, padding_mask
 
 
@@ -37,11 +29,13 @@ class EmbeddingsDataset(Dataset):
         self.stride = stride
 
         self.embedding_repo = FileSystemEmbeddingRepository(base_path=embeddings_dir.as_posix())
-        self.documents = list(self.embedding_repo.list_documents())
+        self.documents = sorted(self.embedding_repo.list_documents())
 
+        self._doc_cache: dict[str, DocumentEmbeddings] = {}
         self.sequence_indices: list[tuple[str, int]] = []
         for doc_id in self.documents:
             doc = self.embedding_repo.load_document_embeddings(doc_id)
+            self._doc_cache[doc_id] = doc
             num_sequences = max(1, (len(doc.embeddings) - sequence_length) // self.stride + 1)
             for seq_idx in range(num_sequences):
                 self.sequence_indices.append((doc_id, seq_idx * self.stride))
@@ -51,7 +45,7 @@ class EmbeddingsDataset(Dataset):
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         doc_id, start_idx = self.sequence_indices[idx]
-        doc = self.embedding_repo.load_document_embeddings(doc_id)
+        doc = self._doc_cache[doc_id]
 
         sequence = doc.embeddings[start_idx : start_idx + self.sequence_length + 1]
 

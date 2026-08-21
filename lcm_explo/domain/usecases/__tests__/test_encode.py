@@ -14,6 +14,15 @@ from lcm_explo.domain.usecases.encode import (
     split_text,
 )
 
+try:
+    import spacy
+    spacy.load("en_core_web_sm")
+    _SPACY_AVAILABLE = True
+except Exception:
+    _SPACY_AVAILABLE = False
+
+_skip_spacy = unittest.skipUnless(_SPACY_AVAILABLE, "en_core_web_sm not installed")
+
 
 class TestEncode(unittest.TestCase):
     def setUp(self) -> None:
@@ -57,8 +66,8 @@ class TestEncode(unittest.TestCase):
                 self.embedding_dim = embedding_dim
 
             def forward(self, **kwargs) -> dict[str, torch.Tensor]:  # type: ignore[no-untyped-def]
-                batch_size = kwargs["input_ids"].shape[0]
-                return type("obj", (object,), {"last_hidden_state": torch.ones((batch_size, 5, self.embedding_dim))})  # type: ignore[return-value]
+                batch_size, seq_len = kwargs["input_ids"].shape[:2]
+                return type("obj", (object,), {"last_hidden_state": torch.ones((batch_size, seq_len, self.embedding_dim))})  # type: ignore[return-value]
 
         model = MockModel()
 
@@ -78,8 +87,8 @@ class TestEncode(unittest.TestCase):
                 self.embedding_dim = embedding_dim
 
             def forward(self, **kwargs) -> dict[str, torch.Tensor]:  # type: ignore[no-untyped-def]
-                batch_size = kwargs["input_ids"].shape[0]
-                return type("obj", (object,), {"last_hidden_state": torch.ones((batch_size, 5, self.embedding_dim))})  # type: ignore[return-value]
+                batch_size, seq_len = kwargs["input_ids"].shape[:2]
+                return type("obj", (object,), {"last_hidden_state": torch.ones((batch_size, seq_len, self.embedding_dim))})  # type: ignore[return-value]
 
         model = MockModel()
 
@@ -95,6 +104,7 @@ class TestEncode(unittest.TestCase):
         )
         self.assertEqual(result_large.shape[0], 0)
 
+    @_skip_spacy
     def test_spacy_segment(self) -> None:
         # Given
         text = "This is a sentence. And another one."
@@ -118,6 +128,7 @@ class TestEncode(unittest.TestCase):
         expected = ["This is a", "very long", "sentence", "that", "needs to", "be split", "into", "smaller", "parts."]
         self.assertEqual(result, expected)
 
+    @_skip_spacy
     def test_split_text(self) -> None:
         # Given
         text = "This is a sentence. This is a very long sentence that needs to be split into smaller parts."
@@ -136,6 +147,7 @@ class TestEncode(unittest.TestCase):
         ]
         self.assertEqual(result, expected)
 
+    @_skip_spacy
     def test_encode_text_sonar_with_spacy(self) -> None:
         # Given
         class MockModel(torch.nn.Module):
@@ -144,8 +156,8 @@ class TestEncode(unittest.TestCase):
                 self.embedding_dim = embedding_dim
 
             def forward(self, **kwargs) -> dict[str, torch.Tensor]:  # type: ignore[no-untyped-def]
-                batch_size = kwargs["input_ids"].shape[0]
-                return type("obj", (object,), {"last_hidden_state": torch.ones((batch_size, 5, self.embedding_dim))})  # type: ignore[return-value]
+                batch_size, seq_len = kwargs["input_ids"].shape[:2]
+                return type("obj", (object,), {"last_hidden_state": torch.ones((batch_size, seq_len, self.embedding_dim))})  # type: ignore[return-value]
 
         model = MockModel()
 
@@ -157,6 +169,7 @@ class TestEncode(unittest.TestCase):
         self.assertEqual(result.shape[0], 150)  # Adjusted expected result
         self.assertEqual(result.shape[1], SONAR_DIMENSIONS)
 
+    @_skip_spacy
     def test_encode_text_sonar_with_spacy_different_max_lengths(self) -> None:
         # Given
         class MockModel(torch.nn.Module):
@@ -165,8 +178,8 @@ class TestEncode(unittest.TestCase):
                 self.embedding_dim = embedding_dim
 
             def forward(self, **kwargs) -> dict[str, torch.Tensor]:  # type: ignore[no-untyped-def]
-                batch_size = kwargs["input_ids"].shape[0]
-                return type("obj", (object,), {"last_hidden_state": torch.ones((batch_size, 5, self.embedding_dim))})  # type: ignore[return-value]
+                batch_size, seq_len = kwargs["input_ids"].shape[:2]
+                return type("obj", (object,), {"last_hidden_state": torch.ones((batch_size, seq_len, self.embedding_dim))})  # type: ignore[return-value]
 
         model = MockModel()
 

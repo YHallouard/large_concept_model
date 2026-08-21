@@ -121,7 +121,7 @@ class TestLCMTrainingModule(unittest.TestCase):
         # Then
         self.assertIn("optimizer", optimizer_config)
         self.assertIn("lr_scheduler", optimizer_config)
-        self.assertEqual(optimizer_config["optimizer"].param_groups[0]["lr"], self.learning_rate)
+        self.assertEqual(optimizer_config["optimizer"].defaults["lr"], self.learning_rate)
         self.assertEqual(optimizer_config["optimizer"].param_groups[0]["weight_decay"], self.weight_decay)
 
     def test_trainer_logging(self) -> None:

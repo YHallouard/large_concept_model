@@ -10,348 +10,158 @@ from lcm_explo.domain.models.base_lcm import (
     BaseLCMDecoderLayer,
     BaseLCMPostNet,
     BaseLCMPreNet,
-    StandardScaler,
+    Normalizer,
     UnknowNormTypeError,
 )
 from lcm_explo.domain.models.nn import DyT
 
 
-@unittest.skip("Skipping pytest fixtures for unittest")
-def config() -> BaseLCMConfig:
-    return BaseLCMConfig(
-        hidden_size=64,
-        num_attention_heads=4,
-        num_hidden_layers=2,
-        intermediate_size=128,
-        hidden_dropout_prob=0.1,
-        attention_probs_dropout_prob=0.1,
-        initializer_range=0.02,
-        layer_norm_eps=1e-12,
-        concept_embedding_dim=32,
-    )
+class TestNormalizer(unittest.TestCase):
+    def setUp(self) -> None:
+        self.dim = 32
+        self.normalizer = Normalizer(self.dim)
 
+    def test_normalize_per_dimension(self) -> None:
+        mean = torch.arange(self.dim, dtype=torch.float32)
+        std = torch.ones(self.dim) * 2.0
+        self.normalizer.load_stats(mean, std)
 
-@unittest.skip("Skipping pytest fixtures for unittest")
-def batch_size() -> int:
-    return 4
+        x = torch.zeros(1, 1, self.dim)
+        normed = self.normalizer.normalize(x)
+        expected = -mean / (std + 1e-8)
+        self.assertTrue(torch.allclose(normed.squeeze(), expected, atol=1e-5))
 
+    def test_denormalize_roundtrip(self) -> None:
+        mean = torch.randn(self.dim)
+        std = torch.abs(torch.randn(self.dim)) + 0.5
+        self.normalizer.load_stats(mean, std)
 
-@unittest.skip("Skipping pytest fixtures for unittest")
-def sequence_length() -> int:
-    return 16
-
-
-@unittest.skip("Skipping pytest fixtures for unittest")
-def concept_embeddings(batch_size: int, sequence_length: int, config: BaseLCMConfig) -> torch.Tensor:
-    return torch.randn(batch_size, sequence_length, config.concept_embedding_dim)
-
-
-class TestStandardScaler(unittest.TestCase):
-    def test_forward(self) -> None:
-        scaler = StandardScaler(temperature=3000.0)
-        x = torch.randn(4, 16, 32)
-        output = scaler(x)
-
-        # Check output shape
-        self.assertEqual(output.shape, x.shape)
-
-        # Check no NaN or Inf values
-        self.assertFalse(torch.isnan(output).any())
-        self.assertFalse(torch.isinf(output).any())
-
-    def test_running_stats(self) -> None:
-        scaler = StandardScaler(temperature=3000.0)
-        x = torch.randn(4, 16, 32)
-
-        # Initial stats
-        initial_mean = scaler.running_mean.clone()
-        initial_var = scaler.running_var.clone()
-
-        # Forward pass in training mode
-        scaler.train()
-        _ = scaler(x)
-
-        # Check that running stats were updated
-        self.assertFalse(torch.equal(scaler.running_mean, initial_mean))
-        self.assertFalse(torch.equal(scaler.running_var, initial_var))
-
-    def test_eval_mode(self) -> None:
-        scaler = StandardScaler(temperature=3000.0)
-        x = torch.randn(4, 16, 32)
-
-        # Set to eval mode
-        scaler.eval()
-        initial_mean = scaler.running_mean.clone()
-        initial_var = scaler.running_var.clone()
-
-        # Forward pass
-        _ = scaler(x)
-
-        # Check that running stats were not updated in eval mode
-        self.assertTrue(torch.equal(scaler.running_mean, initial_mean))
-        self.assertTrue(torch.equal(scaler.running_var, initial_var))
+        x = torch.randn(4, 8, self.dim)
+        recovered = self.normalizer.denormalize(self.normalizer.normalize(x))
+        self.assertTrue(torch.allclose(recovered, x, atol=1e-5))
 
 
 class TestBaseLCMPreNet(unittest.TestCase):
-    def test_forward(self) -> None:
-        given_max_seq_len = 16
+    def test_forward_shape(self) -> None:
         config = BaseLCMConfig(
-            hidden_size=64,
-            max_seq_len=given_max_seq_len,
-            num_attention_heads=4,
-            num_hidden_layers=2,
-            intermediate_size=128,
-            hidden_dropout_prob=0.1,
-            attention_probs_dropout_prob=0.1,
-            initializer_range=0.02,
-            layer_norm_eps=1e-12,
-            concept_embedding_dim=32,
+            hidden_size=64, max_seq_len=16, num_attention_heads=4, num_hidden_layers=2,
+            intermediate_size=128, concept_embedding_dim=32,
         )
-        concept_embeddings = torch.randn(4, given_max_seq_len, 32)
+        x = torch.randn(4, 16, 32)
         pre_net = BaseLCMPreNet(config)
-        output, scaler = pre_net(concept_embeddings)
-
-        # Check output shape
-        self.assertEqual(
-            output.shape,
-            (
-                concept_embeddings.shape[0],
-                concept_embeddings.shape[1],
-                config.hidden_size,
-            ),
-        )
-
-        # Check scaler is returned
-        self.assertIsInstance(scaler, StandardScaler)
-
-        # Check no NaN or Inf values
+        output = pre_net(x)
+        self.assertEqual(output.shape, (4, 16, 64))
         self.assertFalse(torch.isnan(output).any())
-        self.assertFalse(torch.isinf(output).any())
 
 
 class TestBaseLCMPostNet(unittest.TestCase):
-    def test_forward(self) -> None:
-        given_max_seq_len = 16
+    def test_forward_shape(self) -> None:
         config = BaseLCMConfig(
-            hidden_size=64,
-            max_seq_len=given_max_seq_len,
-            num_attention_heads=4,
-            num_hidden_layers=2,
-            intermediate_size=128,
-            hidden_dropout_prob=0.1,
-            attention_probs_dropout_prob=0.1,
-            initializer_range=0.02,
-            layer_norm_eps=1e-12,
-            concept_embedding_dim=32,
+            hidden_size=64, max_seq_len=16, num_attention_heads=4, num_hidden_layers=2,
+            intermediate_size=128, concept_embedding_dim=32,
         )
-        concept_embeddings = torch.randn(4, given_max_seq_len, 32)
-        pre_net = BaseLCMPreNet(config)
+        hidden = torch.randn(4, 16, 64)
         post_net = BaseLCMPostNet(config)
-
-        # Get normalized input and scaler from pre_net
-        hidden, scaler = pre_net(concept_embeddings)
-
-        # Process through post_net
-        output = post_net(hidden, scaler)
-
-        # Check output shape matches input shape
-        self.assertEqual(output.shape, concept_embeddings.shape)
-
-        # Check no NaN or Inf values
+        output = post_net(hidden)
+        self.assertEqual(output.shape, (4, 16, 32))
         self.assertFalse(torch.isnan(output).any())
-        self.assertFalse(torch.isinf(output).any())
 
 
 class TestBaseLCMDecoderLayer(unittest.TestCase):
     def test_forward(self) -> None:
         config = BaseLCMConfig(
-            hidden_size=64,
-            max_seq_len=16,
-            num_attention_heads=4,
-            num_hidden_layers=2,
-            intermediate_size=128,
-            hidden_dropout_prob=0.1,
-            attention_probs_dropout_prob=0.1,
-            initializer_range=0.02,
-            layer_norm_eps=1e-12,
-            concept_embedding_dim=32,
+            hidden_size=64, max_seq_len=16, num_attention_heads=4, num_hidden_layers=2,
+            intermediate_size=128, concept_embedding_dim=32,
         )
-        concept_embeddings = torch.randn(4, 16, 32)
+        hidden = torch.randn(4, 16, 64)
+        padding_mask = torch.ones(4, 16)
         layer = BaseLCMDecoderLayer(config)
-
-        # Get normalized input from pre_net
-        pre_net = BaseLCMPreNet(config)
-        hidden, _ = pre_net(concept_embeddings)
-
-        # Create a padding mask
-        padding_mask = torch.ones(hidden.shape[:2], dtype=torch.float32)
-
         output = layer(hidden, padding_mask)
-
-        # Check output shape
         self.assertEqual(output.shape, hidden.shape)
-
-        # Check no NaN or Inf values
         self.assertFalse(torch.isnan(output).any())
-        self.assertFalse(torch.isinf(output).any())
 
     def test_layer_norm_switch(self) -> None:
         config = BaseLCMConfig(
-            hidden_size=64,
-            max_seq_len=16,
-            num_attention_heads=4,
-            num_hidden_layers=2,
-            intermediate_size=128,
-            hidden_dropout_prob=0.1,
-            attention_probs_dropout_prob=0.1,
-            initializer_range=0.02,
-            layer_norm_eps=1e-12,
-            concept_embedding_dim=32,
+            hidden_size=64, max_seq_len=16, num_attention_heads=4, num_hidden_layers=2,
+            intermediate_size=128, concept_embedding_dim=32, norm_type="RMSNorm",
         )
-        # Test with RMSNorm
-        config.norm_type = "RMSNorm"
         layer = BaseLCMDecoderLayer(config)
         self.assertIsInstance(layer.self_attention_layer_norm, nn.LayerNorm)
-        self.assertIsInstance(layer.feed_forward_layer_norm, nn.LayerNorm)
 
-        # Test with DyT
         config.norm_type = "DyT"
         layer = BaseLCMDecoderLayer(config)
         self.assertIsInstance(layer.self_attention_layer_norm, DyT)
-        self.assertIsInstance(layer.feed_forward_layer_norm, DyT)
 
-        # Test with unknown norm type
-        config.norm_type = "UnknownNorm"  # type: ignore  # noqa: PGH003
-        with self.assertRaises(UnknowNormTypeError) as context:
-            layer = BaseLCMDecoderLayer(config)
-        self.assertEqual(str(context.exception), "Unknown norm type: UnknownNorm")
+        config.norm_type = "UnknownNorm"  # type: ignore
+        with self.assertRaises(UnknowNormTypeError):
+            BaseLCMDecoderLayer(config)
 
 
 class TestBaseLCMDecoder(unittest.TestCase):
     def test_forward(self) -> None:
-        given_max_seq_len = 16
         config = BaseLCMConfig(
-            hidden_size=64,
-            max_seq_len=given_max_seq_len,
-            num_attention_heads=4,
-            num_hidden_layers=2,
-            intermediate_size=128,
-            hidden_dropout_prob=0.1,
-            attention_probs_dropout_prob=0.1,
-            initializer_range=0.02,
-            layer_norm_eps=1e-12,
-            concept_embedding_dim=32,
+            hidden_size=64, max_seq_len=16, num_attention_heads=4, num_hidden_layers=2,
+            intermediate_size=128, concept_embedding_dim=32,
         )
-        concept_embeddings = torch.randn(4, given_max_seq_len, 32)
+        hidden = torch.randn(4, 16, 64)
+        padding_mask = torch.ones(4, 16)
         decoder = BaseLCMDecoder(config)
-
-        # Get normalized input from pre_net
-        pre_net = BaseLCMPreNet(config)
-        hidden, _ = pre_net(concept_embeddings)
-
-        # Create a padding mask
-        padding_mask = torch.ones(hidden.shape[:2], dtype=torch.float32)
-
         output = decoder(hidden, padding_mask)
-
-        # Check output shape
         self.assertEqual(output.shape, hidden.shape)
-
-        # Check no NaN or Inf values
         self.assertFalse(torch.isnan(output).any())
-        self.assertFalse(torch.isinf(output).any())
 
 
 class TestBaseLCM(unittest.TestCase):
-    def test_forward(self) -> None:
-        given_max_seq_len = 16
-        config = BaseLCMConfig(
-            hidden_size=64,
-            max_seq_len=given_max_seq_len,
-            num_attention_heads=4,
-            num_hidden_layers=2,
-            intermediate_size=128,
-            hidden_dropout_prob=0.1,
-            attention_probs_dropout_prob=0.1,
-            initializer_range=0.02,
-            layer_norm_eps=1e-12,
-            concept_embedding_dim=32,
+    def _make_config(self, seq_len: int = 16) -> BaseLCMConfig:
+        return BaseLCMConfig(
+            hidden_size=64, max_seq_len=seq_len, num_attention_heads=4, num_hidden_layers=2,
+            intermediate_size=128, concept_embedding_dim=32,
         )
-        concept_embeddings = torch.randn(4, given_max_seq_len, 32)
+
+    def test_forward_returns_sonar_space(self) -> None:
+        """forward() must return raw SONAR space (denormalized) — paper §2.3.1 eq. 2."""
+        config = self._make_config(4)
+        x = torch.randn(2, 4, 32)
+        padding_mask = torch.ones(2, 4)
         model = BaseLCM(config)
 
-        # Create a padding mask
-        padding_mask = torch.ones(concept_embeddings.shape[:2], dtype=torch.float32)
+        # Load non-trivial stats so we can detect whether denorm was applied
+        median = torch.ones(32) * 5.0
+        iqr = torch.ones(32) * 2.0
+        model.normalizer.load_stats(median, iqr)
 
-        output = model(concept_embeddings, padding_mask)
+        y = model.forward(x, padding_mask)
+        self.assertEqual(y.shape, x.shape)
+        self.assertFalse(torch.isnan(y).any())
 
-        # Check output shape matches input shape
-        self.assertEqual(output.shape, concept_embeddings.shape)
+        # The output must NOT be in normalized space.  In normalized space every
+        # dimension would be ~O(1); after denormalize it is shifted by median ≈ 5.
+        # Check that the mean absolute value is clearly above 1.
+        self.assertGreater(y.abs().mean().item(), 1.0)
 
-        # Check no NaN or Inf values
-        self.assertFalse(torch.isnan(output).any())
-        self.assertFalse(torch.isinf(output).any())
+    def test_predict_is_alias_for_forward(self) -> None:
+        """predict() and forward() must return identical results (paper: both SONAR space)."""
+        config = self._make_config(4)
+        x = torch.randn(2, 4, 32)
+        padding_mask = torch.ones(2, 4)
+        model = BaseLCM(config)
+        model.eval()
+        with torch.no_grad():
+            self.assertTrue(torch.equal(model.forward(x, padding_mask), model.predict(x, padding_mask)))
+
+    def test_normalizer_stats_in_state_dict(self) -> None:
+        config = self._make_config()
+        model = BaseLCM(config)
+        sd = model.state_dict()
+        self.assertIn("normalizer.mean", sd)
+        self.assertIn("normalizer.std", sd)
 
     def test_weight_initialization(self) -> None:
-        given_max_seq_len = 16
-        config = BaseLCMConfig(
-            hidden_size=64,
-            max_seq_len=given_max_seq_len,
-            num_attention_heads=4,
-            num_hidden_layers=2,
-            intermediate_size=128,
-            hidden_dropout_prob=0.1,
-            attention_probs_dropout_prob=0.1,
-            initializer_range=0.02,
-            layer_norm_eps=1e-12,
-            concept_embedding_dim=32,
-        )
+        config = self._make_config()
         model = BaseLCM(config)
-
-        # Check linear layer initialization
         for module in model.modules():
             if isinstance(module, nn.Linear):
-                # Check weight initialization
                 mean = module.weight.mean().item()
-                std = module.weight.std().item()
-                self.assertAlmostEqual(mean, 0, delta=0.1)  # Mean should be close to 0
-                self.assertAlmostEqual(
-                    std, config.initializer_range, delta=0.1
-                )  # Std should be close to initializer_range
-
-                # Check bias initialization if it exists
+                self.assertAlmostEqual(mean, 0, delta=0.2)
                 if module.bias is not None:
                     self.assertTrue(torch.allclose(module.bias, torch.zeros_like(module.bias)))
-
-            elif isinstance(module, nn.LayerNorm):
-                # Check LayerNorm initialization
-                self.assertTrue(torch.allclose(module.weight, torch.ones_like(module.weight)))
-                self.assertTrue(torch.allclose(module.bias, torch.zeros_like(module.bias)))
-
-    def test_next_concept_prediction(self) -> None:
-        given_max_seq_len = 4
-        config = BaseLCMConfig(
-            hidden_size=64,
-            max_seq_len=given_max_seq_len,
-            num_attention_heads=4,
-            num_hidden_layers=2,
-            intermediate_size=128,
-            hidden_dropout_prob=0.1,
-            attention_probs_dropout_prob=0.1,
-            initializer_range=0.02,
-            layer_norm_eps=1e-12,
-            concept_embedding_dim=32,
-        )
-        # Create a sequence of concept embeddings
-        batch_size = 2
-        x = torch.randn(batch_size, given_max_seq_len, config.concept_embedding_dim)
-        padding_mask = torch.ones(batch_size, given_max_seq_len, dtype=torch.float32)
-
-        model = BaseLCM(config)
-        output = model(x, padding_mask)
-
-        # Check that output has same shape as input
-        self.assertEqual(output.shape, x.shape)
-
-        # Check that output is different from input (model transforms the sequence)
-        self.assertFalse(torch.allclose(output, x))

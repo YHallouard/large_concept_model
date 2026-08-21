@@ -1,11 +1,12 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 import torch
 import torch.nn as nn
 
 from lcm_explo.domain.models.nn import DyT, QKNormedMultiheadAttention
-from lcm_explo.domain.models.nn.rotary_positional_mbeddings import RotaryPositionalEmbedding
+from lcm_explo.domain.models.nn.sinusoidal_positional_embeddings import SinusoidalPositionalEmbedding
 
 
 class UnknowNormTypeError(Exception):
@@ -16,46 +17,31 @@ class UnknowNormTypeError(Exception):
         super().__init__(self.message)
 
 
-class StandardScaler(nn.Module):
-    """Standard scaler for normalizing tensors."""
+class Normalizer(nn.Module):
+    """Per-dimension standardizer with frozen statistics.
 
-    running_mean: torch.Tensor
-    running_var: torch.Tensor
-    temperature: float
-    pass_counter: int
+    Statistics are fit once on the embedding corpus (see fit_normalizer_task) and loaded
+    via load_stats. mean/std are buffers, so they travel with the model state_dict.
+    """
 
-    def __init__(self, eps: float = 1e-8, temperature: float = 3000.0) -> None:
+    mean: torch.Tensor
+    std: torch.Tensor
+
+    def __init__(self, dim: int, eps: float = 1e-8) -> None:
         super().__init__()
         self.eps = eps
-        self.temperature = temperature
-        self.pass_counter = 0
-        self.register_buffer("running_mean", torch.zeros(1))
-        self.register_buffer("running_var", torch.ones(1))
+        self.register_buffer("mean", torch.zeros(dim))
+        self.register_buffer("std", torch.ones(dim))
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Forward pass of the scaler.
+    def load_stats(self, mean: torch.Tensor, std: torch.Tensor) -> None:
+        self.mean.copy_(mean.to(self.mean.device))
+        self.std.copy_(std.to(self.std.device))
 
-        Args:
-            x: Input tensor of any shape.
+    def normalize(self, x: torch.Tensor) -> torch.Tensor:
+        return (x - self.mean) / (self.std + self.eps)
 
-        Returns:
-            Normalized tensor of the same shape as input.
-        """
-        if self.training:
-            mean = x.mean()
-            var = x.var(unbiased=False)
-            temperature = self.update_temperature()
-            self.running_mean = temperature * mean + (1 - temperature) * self.running_mean
-            self.running_var = temperature * var + (1 - temperature) * self.running_var
-        else:
-            mean = self.running_mean
-            var = self.running_var
-
-        return (x - mean) / torch.sqrt(var + self.eps)
-
-    def update_temperature(self) -> float:
-        self.pass_counter += 1
-        return (0.1 * torch.exp(-torch.tensor(self.pass_counter / self.temperature))).item()
+    def denormalize(self, x: torch.Tensor) -> torch.Tensor:
+        return x * (self.std + self.eps) + self.mean
 
 
 @dataclass
@@ -68,11 +54,22 @@ class BaseLCMConfig:
     num_attention_heads: int = 16
     num_hidden_layers: int = 12
     intermediate_size: int = 1024 * 4
-    hidden_dropout_prob: float = 0.3
-    attention_probs_dropout_prob: float = 0.2
+    hidden_dropout_prob: float = 0.1
+    attention_probs_dropout_prob: float = 0.1
     initializer_range: float = 0.02
     layer_norm_eps: float = 1e-12
     norm_type: Literal["RMSNorm", "DyT"] = "DyT"
+
+
+def make_norm(config: BaseLCMConfig) -> nn.Module:
+    """Build the normalization layer matching the config's norm_type."""
+    match config.norm_type:
+        case "RMSNorm":
+            return nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        case "DyT":
+            return DyT(config.hidden_size, init_alpha=1.0)
+        case _:
+            raise UnknowNormTypeError(config.norm_type)
 
 
 class BaseLCMPreTrainedModel(nn.Module):
@@ -92,55 +89,52 @@ class BaseLCMPreTrainedModel(nn.Module):
         elif isinstance(module, nn.LayerNorm):
             module.bias.data.zero_()
             module.weight.data.fill_(1.0)
+        elif isinstance(module, DyT):
+            module.alpha.data.fill_(1.0)
+            module.gamma.data.fill_(1.0)
+            module.beta.data.zero_()
 
     def tie_weights(self) -> None:
         pass
 
 
 class BaseLCMPreNet(nn.Module):
-    """Pre-network for the LCM model that normalizes inputs and projects them to hidden dimension."""
+    """Projects (already normalized) SONAR concepts to the model hidden dimension."""
 
     def __init__(self, config: BaseLCMConfig) -> None:
         super().__init__()
         self.config = config
-        self.scaler = StandardScaler()
         self.proj = nn.Linear(config.concept_embedding_dim, config.hidden_size)
-        self.positional_embedding = RotaryPositionalEmbedding(config.hidden_size, config.max_seq_len)
+        self.positional_embedding = SinusoidalPositionalEmbedding(config.hidden_size, config.max_seq_len)
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, StandardScaler]:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x: Input tensor of shape (batch_size, seq_len, concept_embedding_dim)
+            x: Normalized input tensor of shape (batch_size, seq_len, concept_embedding_dim)
         Returns:
-            Tuple of:
-            - Normalized and projected tensor of shape (batch_size, seq_len, hidden_size)
-            - Scaler instance for denormalization in PostNet
+            Tensor of shape (batch_size, seq_len, hidden_size)
         """
-        x = self.scaler(x)
         x = self.proj(x)
         x = self.positional_embedding(x)
-        return x, self.scaler
+        return x
 
 
 class BaseLCMPostNet(nn.Module):
-    """Post-network for the LCM model that projects hidden states back to input dimension and denormalizes."""
+    """Projects hidden states back to the concept dimension (normalized space)."""
 
     def __init__(self, config: BaseLCMConfig) -> None:
         super().__init__()
         self.config = config
         self.proj = nn.Linear(config.hidden_size, config.concept_embedding_dim)
 
-    def forward(self, x: torch.Tensor, scaler: StandardScaler) -> torch.Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         """
         Args:
             x: Input tensor of shape (batch_size, seq_len, hidden_size)
-            scaler: StandardScaler instance from PreNet for denormalization
         Returns:
-            Denormalized tensor of shape (batch_size, seq_len, concept_embedding_dim)
+            Predicted concepts in normalized space, shape (batch_size, seq_len, concept_embedding_dim)
         """
-        x = self.proj(x)
-        x = x * torch.sqrt(scaler.running_var + scaler.eps) + scaler.running_mean
-        return x
+        return self.proj(x)
 
 
 class BaseLCMDecoderLayer(nn.Module):
@@ -162,19 +156,9 @@ class BaseLCMDecoderLayer(nn.Module):
             nn.Dropout(config.hidden_dropout_prob),
             nn.Linear(config.intermediate_size, config.hidden_size),
         )
-        self._initialize_layer_norm(config)
+        self.self_attention_layer_norm = make_norm(config)
+        self.feed_forward_layer_norm = make_norm(config)
         self.dropout = nn.Dropout(config.hidden_dropout_prob)
-
-    def _initialize_layer_norm(self, config: BaseLCMConfig) -> None:
-        """Initialize the layer normalization based on the config norm type."""
-        if config.norm_type == "RMSNorm":
-            self.self_attention_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-            self.feed_forward_layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
-        elif config.norm_type == "DyT":
-            self.self_attention_layer_norm = DyT(config.hidden_size, init_alpha=0.5)
-            self.feed_forward_layer_norm = DyT(config.hidden_size, init_alpha=0.5)
-        else:
-            raise UnknowNormTypeError(config.norm_type)
 
     def forward(self, hidden_states: torch.Tensor, padding_mask: torch.Tensor) -> torch.Tensor:
         """
@@ -187,9 +171,14 @@ class BaseLCMDecoderLayer(nn.Module):
         # Self-attention block
         residual = hidden_states
         hidden_states = self.self_attention_layer_norm(hidden_states)
-        # Apply padding mask to attention scores
-        attention_mask = padding_mask.unsqueeze(1).unsqueeze(2)  # (batch_size, 1, 1, seq_len)
-        attention_mask = (1.0 - attention_mask) * -10000.0  # Convert mask to large negative values
+        seq_len = hidden_states.shape[1]
+        causal_mask = (
+            torch.triu(torch.full((seq_len, seq_len), -10000.0, device=hidden_states.device), diagonal=1)
+            .unsqueeze(0)
+            .unsqueeze(0)
+        )  # (1, 1, S, S)
+        padding_attn_mask = (1.0 - padding_mask.unsqueeze(1).unsqueeze(2)) * -10000.0  # (B, 1, 1, S)
+        attention_mask = causal_mask + padding_attn_mask  # (B, 1, S, S)
         hidden_states, _ = self.self_attention(
             hidden_states, hidden_states, hidden_states, attention_mask=attention_mask
         )
@@ -211,7 +200,7 @@ class BaseLCMDecoder(nn.Module):
     def __init__(self, config: BaseLCMConfig) -> None:
         super().__init__()
         self.layers = nn.ModuleList([BaseLCMDecoderLayer(config) for _ in range(config.num_hidden_layers)])
-        self.layer_norm = nn.LayerNorm(config.hidden_size, eps=config.layer_norm_eps)
+        self.layer_norm = make_norm(config)
 
     def forward(self, hidden_states: torch.Tensor, padding_mask: torch.Tensor) -> torch.Tensor:
         """
@@ -227,10 +216,11 @@ class BaseLCMDecoder(nn.Module):
 
 
 class BaseLCM(BaseLCMPreTrainedModel):
-    """Base Latent Consistency Model for next-concept prediction."""
+    """Base Large Concept Model for next-concept prediction."""
 
     def __init__(self, config: BaseLCMConfig) -> None:
         super().__init__(config)
+        self.normalizer = Normalizer(config.concept_embedding_dim)
         self.pre_net = BaseLCMPreNet(config)
         self.decoder = BaseLCMDecoder(config)
         self.post_net = BaseLCMPostNet(config)
@@ -240,11 +230,21 @@ class BaseLCM(BaseLCMPreTrainedModel):
     def forward(self, x: torch.Tensor, padding_mask: torch.Tensor) -> torch.Tensor:
         """
         Args:
-            x: Input tensor of SONAR embeddings, shape (batch_size, seq_len, concept_embedding_dim)
+            x: SONAR embeddings (raw space), shape (batch_size, seq_len, concept_embedding_dim)
         Returns:
-            Predicted next concepts, shape (batch_size, seq_len, concept_embedding_dim)
+            Predicted next concepts in raw SONAR space, shape (batch_size, seq_len, concept_embedding_dim)
         """
-        x, scaler = self.pre_net(x)
+        x = self.normalizer.normalize(x)
+        x = self.pre_net(x)
         x = self.decoder(x, padding_mask)
-        x = self.post_net(x, scaler)
-        return x
+        x = self.post_net(x)
+        return self.normalizer.denormalize(x)
+
+    def predict(self, x: torch.Tensor, padding_mask: torch.Tensor) -> torch.Tensor:
+        """Alias for forward() — predictions are already in raw SONAR space."""
+        return self.forward(x, padding_mask)
+
+    def load_normalizer_stats(self, path: str | Path) -> None:
+        """Load frozen per-dimension normalization statistics from a normalizer.pt artifact."""
+        stats = torch.load(path)  # nosec
+        self.normalizer.load_stats(stats["mean"], stats["std"])

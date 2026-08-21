@@ -2,14 +2,14 @@ import unittest
 
 import torch
 
-from lcm_explo.domain.models.nn.rotary_positional_mbeddings import RotaryPositionalEmbedding
+from lcm_explo.domain.models.nn.sinusoidal_positional_embeddings import SinusoidalPositionalEmbedding
 
 
-class TestRotaryPositionalEmbedding(unittest.TestCase):
+class TestSinusoidalPositionalEmbedding(unittest.TestCase):
     def setUp(self) -> None:
         self.d_model = 64
         self.max_seq_len = 128
-        self.embedding = RotaryPositionalEmbedding(self.d_model, self.max_seq_len)
+        self.embedding = SinusoidalPositionalEmbedding(self.d_model, self.max_seq_len)
 
     def test_forward_shape(self) -> None:
         batch_size = 2

@@ -36,3 +36,19 @@ Run Base lcm training
 ```bash
 uv run python scripts/train_base_lcm.py --embeddings-dir notebooks/data --output-dir notebooks/data/checkpoints --max-epochs 100
 ```
+
+Run DLCM pre-training
+
+```bash
+# 1. Prepare packed token shards (web + code mix, GPT-2 tokenizer)
+uv run python scripts/prepare_dlcm_data.py --output-dir notebooks/data/dlcm_tokens --total-tokens 1_000_000_000
+
+# 2. Train the Dynamic Large Concept Model
+uv run python scripts/train_dlcm.py \
+  --tokens-dir notebooks/data/dlcm_tokens \
+  --output-dir notebooks/data/checkpoints \
+  --max-steps 30_000 \
+  --micro-batch-size 4 \
+  --accumulate-grad-batches 8 \
+  --warm-start-embedding
+```

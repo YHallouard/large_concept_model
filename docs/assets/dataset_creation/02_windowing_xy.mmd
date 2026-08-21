@@ -1,0 +1,6 @@
+flowchart TD
+    S0["shard_0000.bin"] --> C["np.concatenate\n(mémoire = 1 gros vecteur uint16)"]
+    S1["shard_0001.bin"] --> C
+    S2["..."] --> C
+    C --> W["Fenêtrage: seq_index → offset = seq_index * seq_len\nwindow = tokens[offset : offset + seq_len + 1]"]
+    W --> SPLIT["tokens[:-1] = X (input_ids)\ntokens[1:]  = Y (labels)"]

@@ -1,4 +1,4 @@
-from lcm_explo.domain.models._losses import RMSELoss
+from lcm_explo.domain.models._losses import BoundaryRatioLoss, RMSELoss
 from lcm_explo.domain.models.base_lcm import (
     BaseLCM,
     BaseLCMConfig,
@@ -7,27 +7,46 @@ from lcm_explo.domain.models.base_lcm import (
     BaseLCMPostNet,
     BaseLCMPreNet,
 )
+from lcm_explo.domain.models.dlcm import (
+    DLCM,
+    DLCMBackbone,
+    DLCMConfig,
+    DLCMDecoder,
+    DLCMEncoder,
+    DLCMOutput,
+    DLCMSegmenter,
+)
 from lcm_explo.domain.models.one_tower_lcm import (
+    CosineNoiseSchedule,
+    OneTowerDecoder,
+    OneTowerDecoderLayer,
     OneTowerLCM,
     OneTowerLCMConfig,
-    OneTowerLCMDecoder,
-    OneTowerLCMDecoderLayer,
-    OneTowerLCMPostNet,
-    OneTowerLCMPreNet,
+    OneTowerPreNet,
+    TimestepEmbedding,
 )
 
 __all__ = [
+    "DLCM",
     "BaseLCM",
     "BaseLCMConfig",
+    "BoundaryRatioLoss",
+    "DLCMBackbone",
+    "DLCMConfig",
+    "DLCMDecoder",
+    "DLCMEncoder",
+    "DLCMOutput",
+    "DLCMSegmenter",
     "BaseLCMDecoder",
     "BaseLCMDecoderLayer",
     "BaseLCMPostNet",
     "BaseLCMPreNet",
+    "CosineNoiseSchedule",
+    "OneTowerDecoder",
+    "OneTowerDecoderLayer",
     "OneTowerLCM",
     "OneTowerLCMConfig",
-    "OneTowerLCMDecoder",
-    "OneTowerLCMDecoderLayer",
-    "OneTowerLCMPostNet",
-    "OneTowerLCMPreNet",
+    "OneTowerPreNet",
     "RMSELoss",
+    "TimestepEmbedding",
 ]

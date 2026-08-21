@@ -1,0 +1,6 @@
+flowchart TD
+    D0["__getitem__(i0) → (X0, Y0)"] --> STACK["torch.stack"]
+    D1["__getitem__(i1) → (X1, Y1)"] --> STACK
+    D2["__getitem__(i2) → (X2, Y2)"] --> STACK
+    D3["... (B exemples)"] --> STACK
+    STACK --> BATCH["batch = (input_ids, labels)\ninput_ids: (B, L) int64\nlabels:    (B, L) int64"]

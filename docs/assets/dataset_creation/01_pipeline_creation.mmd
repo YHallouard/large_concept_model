@@ -1,0 +1,16 @@
+flowchart LR
+    subgraph sources["Sources HuggingFace (streaming)"]
+        A["fineweb-edu\nsample-10BT\npoids 0.75"]
+        B["github-code-clean\nlangage ∈ {Python, Markdown}\npoids 0.25"]
+    end
+
+    A --> I["interleave_datasets\n(seed=42, stopping_strategy=all_exhausted)"]
+    B --> I
+
+    I --> T["GPT2TokenizerFast.encode(text)\n+ append EOS (50256)"]
+    T --> BUF["buffer: list[int]\n(flux continu de tokens)"]
+
+    BUF -->|"len(buffer) >= 50_000_000"| FLUSH["flush()\nnp.uint16 → shard_NNNN.bin"]
+    FLUSH --> BUF
+
+    FLUSH --> META["meta.json\n(seq_len, total_tokens,\ntotal_sequences, shards, ...)"]

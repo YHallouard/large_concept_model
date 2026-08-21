@@ -1,0 +1,24 @@
+flowchart TD
+    X["input_ids (B, L)\nint64"] --> EMB["Embedding + position\n(B, L, d_token=512)"]
+    EMB --> ENC["Encoder (self-attn causale)\nh: (B, L, 512)"]
+
+    ENC --> BD["BoundaryDetector\np: (B, L) proba continue"]
+    BD --> SAMP["sample / threshold\nb: (B, L) 0/1"]
+    SAMP --> SEG["segment_ids_from_boundaries\nseg_id: (B, L)\nnum_segments: (B,)"]
+
+    ENC --> POOL["SegmentMeanPooling(h, seg_id)\npooled: (B, M_max, 512)\nconcept_mask: (B, M_max)"]
+    SEG --> POOL
+    POOL --> UP["w_up (Linear 512→1024)\nconcepts: (B, M_max, d_concept=1024)"]
+
+    UP --> BACK["Backbone (self-attn causale\nmasquée par concept_mask)\nz: (B, M_max, 1024)"]
+
+    BACK --> XATTN["CausalConceptCrossAttention\n(réplique z par seg_id)\nz_rep: (B, L, 1024)"]
+    ENC --> XATTN
+    XATTN --> DEC["Decoder layers\nh': (B, L, 512)"]
+
+    DEC --> LM["lm_head (Linear 512→vocab)\nlogits: (B, L, 50257)"]
+
+    LM -->|"reshape(-1, vocab)"| CE["cross_entropy(logits, Y)"]
+    Y["labels (B, L) = Y"] -->|"reshape(-1)"| CE
+    BD -.->|"p"| AUX["BoundaryRatioLoss\n(aux, sur p et b — pas sur Y)"]
+    SAMP -.->|"b"| AUX
